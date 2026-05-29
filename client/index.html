@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Carpooling Mahasiswa</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="logo">🚗 CarpoolMHS</div>
+  <div class="nav-links">
+    <a href="#" id="nav-home">Home</a>
+    <a href="#" id="nav-kendaraan" style="display:none">Kendaraan</a>
+    <a href="#" id="nav-booking"   style="display:none">Booking Saya</a>
+    <a href="#" id="nav-host"      style="display:none">Host Panel</a>
+    <a href="#" id="nav-profil"    style="display:none">Profil</a>
+    <a href="#" id="nav-admin"     style="display:none">Admin</a>
+    <button id="btn-logout">Logout</button>
+  </div>
+</nav>
+
+<div id="page-home" class="page active">
+  <div class="hero">
+    <h1>🚗 Carpooling Mahasiswa</h1>
+    <p>Patungan kendaraan bareng ke kampus — hemat ongkos, kurangi macet!</p>
+    <div class="hero-btns">
+      <button id="btn-go-login">Login</button>
+      <button id="btn-go-register" class="outline">Daftar Dulu</button>
+    </div>
+  </div>
+  <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:8px;"> 
+    <div class="card" style="flex:1; min-width:200px;">
+      <h3>💰 Hemat Biaya</h3>
+      <p>Bayar patungan bareng teman, jauh lebih murah dari ojek online.</p>
+    </div>
+    <div class="card" style="flex:1; min-width:200px;">
+      <h3>📍 Titik Kumpul Jelas</h3>
+      <p>Sudah ada info jam berangkat dan titik kumpul. Tinggal dateng aja.</p>
+    </div>
+    <div class="card" style="flex:1; min-width:200px;">
+      <h3>✅ Booking Gampang</h3>
+      <p>Pilih kendaraan, booking, tunggu konfirmasi. Selesai!</p>
+    </div>
+  </div>
+</div>
+
+<div id="page-login" class="page">
+  <h2>Login</h2>
+  <div id="alert-login" class="alert"></div>
+  <div class="form-box">
+    <form id="form-login">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="email@kampus.ac.id" required />
+      <label>Password</label>
+      <input type="password" id="login-pass" placeholder="password kamu" required />
+      <button type="submit">Login</button>
+    </form>
+    <p style="margin-top:12px; font-size:13px;">
+      Belum punya akun? <a href="#" id="link-to-register">Daftar di sini</a>
+    </p>
+  </div>
+</div>
+
+<div id="page-register" class="page">
+  <h2>Daftar Akun</h2>
+  <div id="alert-register" class="alert"></div>
+  <div class="form-box">
+    <form id="form-register">
+      <label>Nama Lengkap</label>
+      <input type="text" id="reg-nama" placeholder="Nama kamu" required />
+      <label>Email</label>
+      <input type="email" id="reg-email" placeholder="email@kampus.ac.id" required />
+      <label>No HP</label>
+      <input type="text" id="reg-hp" placeholder="08xxxxxxxxxx" />
+      <label>Password</label>
+      <input type="password" id="reg-pass" placeholder="min 6 karakter" required />
+      <button type="submit">Daftar</button>
+    </form>
+    <p style="margin-top:12px; font-size:13px;">
+      Sudah punya akun? <a href="#" id="link-to-login">Login di sini</a>
+    </p>
+  </div>
+</div>
+
+<div id="page-kendaraan" class="page">
+  <div class="tabs">
+    <button class="tab-btn active" data-group="kendaraan" data-tab="cari">Cari Carpool</button>
+    <button class="tab-btn"        data-group="kendaraan" data-tab="tambah">+ Host Carpool</button>
+    <button class="tab-btn"        data-group="kendaraan" data-tab="my-kendaraan">Carpool yang Saya Host</button>
+  </div>
+
+  <div data-tabcontent="kendaraan" data-tab="cari">
+    <h2>Daftar Kendaraan Tersedia</h2>
+    <div id="alert-booking" class="alert"></div>
+
+    <div id="booking-form-section" style="display:none; margin-bottom:20px;">
+      <div class="form-box">
+        <p id="booking-kendaraan-nama" class="section-title"></p>
+        <p id="booking-jam-info" style="font-size:13px; color:#555; margin-bottom:8px;"></p> <form id="form-booking">
+          <input type="hidden" id="booking-kendaraan-id" />
+          <input type="hidden" id="booking-tanggal" />
+          <label>Jumlah Kursi</label>
+          <input type="number" id="booking-kursi" value="1" min="1" max="10" required />
+          <button type="submit">Konfirmasi Booking</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="list-kendaraan" class="card-grid">
+      <p class="empty-msg">Memuat...</p>
+    </div>
+  </div>
+
+  <div data-tabcontent="kendaraan" data-tab="tambah" style="display:none">
+    <h2>Host Carpool</h2>
+    <div id="alert-kendaraan" class="alert"></div>
+    <div class="form-box">
+      <form id="form-kendaraan">
+        <label>Nama Kendaraan</label>
+        <input type="text" id="k-nama" placeholder="cth: Honda Mobilio Putih" required />
+        <label>Plat Nomor</label>
+        <input type="text" id="k-plat" placeholder="cth: AB 1234 CD" required />
+        <label>Kapasitas Penumpang</label>
+        <input type="number" id="k-kapasitas" placeholder="cth: 4" min="1" required />
+        <label>Titik Kumpul</label>
+        <input type="text" id="k-titik" placeholder="cth: Depan Indomaret Seturan" required />
+        <label>Tanggal Berangkat (Opsional)</label>
+        <input type="date" id="k-tanggal" /> <label>Jam Berangkat</label>
+        <input type="time" id="k-jam" required />
+        <label>Harga per Kursi (Rp)</label>
+        <input type="number" id="k-harga" placeholder="cth: 5000" min="0" />
+        <button type="submit">Tambahkan</button>
+      </form>
+    </div>
+  </div>
+
+  <div data-tabcontent="kendaraan" data-tab="my-kendaraan" style="display:none">
+    <h2>Carpool yang Saya Host</h2>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Nama</th><th>Plat</th><th>Titik Kumpul</th><th>Tanggal</th><th>Jam</th><th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="my-kendaraan-body">
+          <tr><td colspan="6" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="page-booking" class="page">
+  <h2>Booking Saya</h2>
+  <p style="font-size:13px; color:#666; margin-bottom:12px;">
+    Status <b>pending</b> = menunggu konfirmasi admin/host. Kalau sudah <b>konfirmasi</b> baru bisa bayar atau pantau rute.
+  </p>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Kendaraan</th><th>Tanggal</th><th>Jam</th><th>Total</th><th>Status</th><th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="my-booking-body">
+        <tr><td colspan="7" class="empty-msg">Memuat...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="page-host" class="page">
+  <h2>Host Panel (Pesanan Masuk)</h2>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th><th>Penumpang</th><th>Kendaraan</th><th>Tanggal</th><th>Total</th><th>Status</th><th>Aksi (Host)</th>
+        </tr>
+      </thead>
+      <tbody id="host-booking-body">
+        <tr><td colspan="7" class="empty-msg">Memuat...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="page-pantau" class="page">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+    <h2 id="pantau-nama" style="margin: 0;">🗺️ Pantau Rute</h2>
+    <button id="btn-kembali-pantau" class="outline">⬅️ Kembali ke Kendaraan</button>
+  </div>
+  <input type="hidden" id="pantau-kendaraan-id" />
+  <p id="pantau-status" style="font-size: 13px; color: #555; background: #f3f4f6; padding: 8px; border-radius: 4px; margin-bottom: 12px;">Memuat posisi driver...</p>
+  
+  <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+    <button id="btn-refresh-rute">🔄 Refresh Manual</button>
+    <button id="btn-auto-refresh">▶️ Auto Refresh (5s)</button>
+  </div>
+  
+  <div id="pantau-map" style="width: 100%; height: 400px; background: #eee; border-radius: 8px; border: 1px solid #ccc;"></div>
+</div>
+
+<div id="page-profil" class="page">
+  <div class="tabs">
+    <button class="tab-btn active" data-group="profil" data-tab="profil-info">Info Profil</button>
+    <button class="tab-btn"        data-group="profil" data-tab="edit-profil">Edit Profil</button>
+    <button class="tab-btn"        data-group="profil" data-tab="simstnk">Upload SIM/STNK</button>
+  </div>
+  <div id="alert-profil" class="alert"></div>
+
+  <div data-tabcontent="profil" data-tab="profil-info">
+  <h2>Profil Saya</h2>
+  <table style="max-width:400px; margin-bottom: 20px;">
+    <tr><td><b>Nama</b></td>   <td id="profil-nama">-</td></tr>
+    <tr><td><b>Email</b></td>  <td id="profil-email">-</td></tr>
+    <tr><td><b>No HP</b></td>  <td id="profil-hp">-</td></tr>
+    <tr><td><b>Role</b></td>   <td id="profil-role">-</td></tr>
+    <tr><td><b>Rating</b></td> <td id="profil-rating">-</td></tr>
+    <tr>
+      <td><b>Status SIM/STNK</b></td>
+      <td><span id="profil-sim-status" style="font-weight:bold;">Memuat...</span></td>
+    </tr>
+  </table>
+
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;"/>
+
+    <h3>📡 Live Tracking (Khusus Driver)</h3>
+    <div class="form-box" style="margin-top: 10px;">
+      <label>Pilih Kendaraan yang Akan Jalan:</label>
+      <select id="track-kendaraan-select">
+        <option value="">-- Memuat kendaraan --</option>
+      </select>
+      <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+        <button id="btn-mulai-tracking" type="button">🚀 Mulai Share Lokasi</button>
+        <button id="btn-stop-tracking" type="button" class="danger" style="display:none;">🛑 Berhenti Share</button>
+      </div>
+      <p id="tracking-status" style="font-size:13px; font-weight: bold; margin-top:10px; color:#555;">Status: Tidak aktif</p>
+    </div>
+    <div id="share-map" style="width: 100%; height: 250px; background: #eee; border-radius: 8px; margin-top: 12px; border: 1px solid #ccc;"></div>
+  </div>
+
+  <div data-tabcontent="profil" data-tab="edit-profil" style="display:none">
+    <h2>Edit Profil</h2>
+    <div class="form-box">
+      <form id="form-edit-profil">
+        <label>Nama</label>
+        <input type="text" id="edit-nama" required />
+        <label>No HP</label>
+        <input type="text" id="edit-hp" />
+        <button type="submit">Simpan Perubahan</button>
+      </form>
+    </div>
+  </div>
+
+  <div data-tabcontent="profil" data-tab="simstnk" style="display:none">
+  <h2>Upload Dokumen SIM / STNK</h2>
+  <p style="font-size:13px; color:#666; margin-bottom:12px;">
+    Masukkan nomor SIM/STNK kamu. Admin akan memverifikasi secara manual.
+  </p>
+  
+  <div id="sim-upload-container">
+    <div class="form-box">
+      <form id="form-simstnk">
+        <label>Jenis Dokumen</label>
+        <select id="ss-jenis">
+          <option value="SIM">SIM</option>
+          <option value="STNK">STNK</option>
+        </select>
+        <label>Nomor Dokumen</label>
+        <input type="text" id="ss-nomor" placeholder="cth: 1234567890" required />
+        <button type="submit">Kirim untuk Diverifikasi</button>
+      </form>
+    </div>
+  </div>
+  </div>
+</div>
+
+<div id="page-admin" class="page">
+  <h2>Panel Admin</h2>
+  <div id="alert-admin" class="alert"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-group="admin" data-tab="admin-booking">Kelola Booking</button>
+    <button class="tab-btn"        data-group="admin" data-tab="admin-users">Kelola User</button>
+    <button class="tab-btn"        data-group="admin" data-tab="admin-verif">Verifikasi SIM/STNK</button>
+  </div>
+
+  <div data-tabcontent="admin" data-tab="admin-booking">
+    <h2>Semua Booking</h2>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>#</th><th>User</th><th>Kendaraan</th><th>Tanggal</th><th>Status</th><th>Aksi</th></tr>
+        </thead>
+        <tbody id="admin-booking-body">
+          <tr><td colspan="6" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div data-tabcontent="admin" data-tab="admin-users" style="display:none">
+    <h2>Semua User</h2>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Nama</th><th>Email</th><th>Role</th><th>Aksi</th></tr>
+        </thead>
+        <tbody id="admin-users-body">
+          <tr><td colspan="5" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div data-tabcontent="admin" data-tab="admin-verif" style="display:none">
+    <h2>Verifikasi SIM/STNK</h2>
+    <p style="font-size:13px; color:#666; margin-bottom:12px;">
+      Masukkan ID dokumen yang dikirim user untuk diverifikasi.
+    </p>
+    <table style="margin-bottom:16px;">
+      <thead>
+        <tr><th>ID</th><th>User ID</th><th>Jenis</th><th>Status</th></tr>
+      </thead>
+      <tbody id="admin-simstnk-body">
+        <tr><td colspan="4" class="empty-msg">-</td></tr>
+      </tbody>
+    </table>
+    <div class="form-box">
+      <form id="form-verif">
+        <label>ID Dokumen</label>
+        <input type="number" id="verif-id" placeholder="ID dari tabel" required />
+        <label>Status Verifikasi</label>
+        <select id="verif-status">
+          <option value="terverifikasi">Terverifikasi ✅</option>
+          <option value="ditolak">Ditolak ❌</option>
+        </select>
+        <button type="submit">Proses Verifikasi</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="rating-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:9999;">
+  <div class="form-box" style="background:white; padding:20px; border-radius:8px; width:90%; max-width:400px;">
+    <h3>⭐ Beri Rating Perjalanan</h3>
+    <form id="form-rating">
+      <input type="hidden" id="rating-booking-id" />
+      <input type="hidden" id="rating-driver-id" />
+      <label>Nilai (1-5)</label>
+      <select id="rating-nilai">
+        <option value="5">⭐⭐⭐⭐⭐ (Sangat Bagus)</option>
+        <option value="4">⭐⭐⭐⭐ (Bagus)</option>
+        <option value="3">⭐⭐⭐ (Cukup)</option>
+        <option value="2">⭐⭐ (Buruk)</option>
+        <option value="1">⭐ (Sangat Buruk)</option>
+      </select>
+      <label>Komentar</label>
+      <textarea id="rating-komentar" rows="3" placeholder="Masukkan ulasan Anda..." style="width:100%; margin-bottom:10px; padding:8px; border-radius:4px; border:1px solid #ccc;"></textarea>
+      <div style="display:flex; gap:8px;">
+        <button type="submit" style="flex:1;">Kirim</button>
+        <button type="button" id="btn-tutup-rating" class="outline" style="flex:1;">Batal</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
