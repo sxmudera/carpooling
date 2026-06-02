@@ -3,6 +3,8 @@ const cors = require('cors');
 const path = require('path');
 const { connectMySQL } = require('./config/database');
 const connectMongo = require('./config/mongo');
+const { getMongoStatus } = require('./config/mongo');
+const { sequelize } = require('./config/database');
 
 const app = express();
 const isDev = process.env.NODE_ENV !== 'production';
@@ -27,8 +29,21 @@ app.use('/api/rating', require('./routes/ratingRoutes'));
 app.use('/api/riwayat-lokasi', require('./routes/riwayatLokasiRoutes'));
 app.use('/api/tracking-log', require('./routes/trackingLogRoutes'));
 
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true, service: 'carpooling-api' });
+app.get('/api/health', async (req, res) => {
+  let mysql = { configured: !!(process.env.DB_NAME && process.env.DB_USER), connected: false };
+  try {
+    await sequelize.authenticate();
+    mysql.connected = true;
+  } catch (e) {
+    mysql.error = e.message;
+  }
+  const mongo = getMongoStatus();
+  res.json({
+    ok: mysql.connected && mongo.connected,
+    service: 'carpooling-api',
+    mysql,
+    mongo,
+  });
 });
 
 // Lokal saja: serve frontend dari folder client-* (Cloud Run tidak pakai ini)
