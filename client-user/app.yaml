@@ -1,4 +1,4 @@
-runtime: nodejs22
+runtime: python39
 service: carpooling-user
 
 handlers:
