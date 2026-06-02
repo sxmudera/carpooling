@@ -21,7 +21,8 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--add-cloudsql-instances=${_CLOUD_SQL_INSTANCE}'
-      - '--set-env-vars=NODE_ENV=production,CLOUD_SQL_CONNECTION_NAME=${_CLOUD_SQL_INSTANCE}'
+      # update-env-vars: jangan hapus DB_USER/DB_PASS/MONGO_URI/JWT yang sudah diset di Cloud Run
+      - '--update-env-vars=NODE_ENV=production,CLOUD_SQL_CONNECTION_NAME=${_CLOUD_SQL_INSTANCE}'
 images:
   - 'gcr.io/$PROJECT_ID/carpooling-backend'
 options:

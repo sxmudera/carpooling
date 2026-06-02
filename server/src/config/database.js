@@ -29,6 +29,11 @@ const sequelize = new Sequelize(
 );
 
 const connectMySQL = async () => {
+  const missing = ['DB_NAME', 'DB_USER', 'DB_PASS'].filter((k) => !process.env[k]);
+  if (missing.length) {
+    console.error('MySQL env belum lengkap:', missing.join(', '));
+    return;
+  }
   try {
     await sequelize.authenticate();
     console.log('MySQL terhubung!', cloudSqlInstance ? `(socket ${cloudSqlInstance})` : `(${sequelizeOptions.host})`);
