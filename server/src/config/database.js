@@ -12,6 +12,8 @@ if (cloudSqlInstance) {
   // Cloud Run + Cloud SQL (Unix socket)
   sequelizeOptions.dialectOptions = {
     socketPath: `/cloudsql/${cloudSqlInstance}`,
+    // Diperlukan untuk beberapa user/auth Cloud SQL (mysql_clear_password)
+    enableCleartextPlugin: true,
   };
 } else {
   // Lokal / TCP biasa
