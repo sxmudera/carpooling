@@ -40,7 +40,14 @@ const login = async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
-    res.json({ message: 'Login berhasil', token, role: user.role, nama: user.nama });
+    res.json({
+      message: 'Login berhasil',
+      token,
+      id: user.id,
+      role: user.role,
+      nama: user.nama,
+      sim_verified: !!user.sim_verified
+    });
   } catch (err) {
     res.status(500).json({ message: 'Gagal login', error: err.message });
   }

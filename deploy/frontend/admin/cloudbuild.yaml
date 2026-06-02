@@ -4,5 +4,5 @@ steps:
     args:
       - app
       - deploy
-      - client/app.yaml
+      - client-admin/app.yaml
       - '--quiet'

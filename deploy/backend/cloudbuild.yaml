@@ -1,6 +1,6 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/carpooling-backend', '.']
+    args: ['build', '-f', 'deploy/backend/Dockerfile', '-t', 'gcr.io/$PROJECT_ID/carpooling-backend', '.']
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/carpooling-backend']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'

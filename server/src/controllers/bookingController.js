@@ -151,10 +151,15 @@ const selesaikanPerjalanan = async (req, res) => {
 // DELETE /api/booking/:id/batal
 const cancel = async (req, res) => {
   try {
-    const booking = await Booking.findByPk(req.params.id);
+    const booking = await Booking.findByPk(req.params.id, {
+      include: [{ model: Kendaraan, attributes: ['id', 'user_id'] }],
+    });
     if (!booking) return res.status(404).json({ message: 'Tidak ditemukan' });
-    if (req.user.role !== 'admin' && booking.user_id !== req.user.id) {
-      return res.status(403).json({ message: 'Bukan booking kamu' });
+    const isAdmin = req.user.role === 'admin';
+    const isPemilikBooking = booking.user_id === req.user.id;
+    const isHostKendaraan = booking.Kendaraan && booking.Kendaraan.user_id === req.user.id;
+    if (!isAdmin && !isPemilikBooking && !isHostKendaraan) {
+      return res.status(403).json({ message: 'Tidak berhak membatalkan booking ini' });
     }
     await booking.update({ status: 'batal' });
     res.json({ message: 'Booking dibatalkan' });

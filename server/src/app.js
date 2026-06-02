@@ -4,6 +4,7 @@ const path = require('path');
 const { connectMySQL } = require('./config/database');
 const connectMongo = require('./config/mongo');
 
+
 const app = express();
 
 // Koneksi DB
@@ -12,24 +13,33 @@ connectMongo();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
-// Serve frontend statis
-app.use(express.static(path.join(__dirname, '../../..', 'client')));
+const userClientDir = path.join(__dirname, '../..', 'client-user');
+const adminClientDir = path.join(__dirname, '../..', 'client-admin');
 
-app.use(express.static(path.resolve(__dirname, '../../client')));
+// Serve frontend statis terpisah (user vs admin).
+app.use('/admin', express.static(adminClientDir));
+app.use(express.static(userClientDir));
 // API Routes
 app.use('/api/auth',      require('./routes/authRoutes'));
 app.use('/api/users',     require('./routes/userRoutes'));
+app.use('/api/sim-verifications', require('./routes/simVerificationRoutes'));
 app.use('/api/kendaraan', require('./routes/kendaraanRoutes'));
 app.use('/api/booking',   require('./routes/bookingRoutes'));
 app.use('/api/lokasi',    require('./routes/lokasiRoutes'));
 app.use('/api/rating',    require('./routes/ratingRoutes'));
+app.use('/api/riwayat-lokasi', require('./routes/riwayatLokasiRoutes'));
+app.use('/api/tracking-log', require('./routes/trackingLogRoutes'));
+
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(adminClientDir, 'index.html'));
+});
 
 // Semua route non-api → frontend
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../..', 'client', 'index.html'));
+  res.sendFile(path.join(userClientDir, 'index.html'));
 });
 
 // Error handler

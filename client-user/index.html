@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Carpooling Mahasiswa</title>
+  <script>
+    // Ganti saat deploy terpisah bila backend beda domain.
+    window.API_BASE_URL = window.API_BASE_URL || '/api';
+    // Ganti ke URL platform admin (mis: https://carpooling-admin-dot-<project>.appspot.com)
+    window.ADMIN_BASE_URL = window.ADMIN_BASE_URL || '/admin';
+  </script>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -136,6 +142,33 @@
         <button type="submit">Tambahkan</button>
       </form>
     </div>
+
+    <div style="height:16px;"></div>
+
+    <h3>Koordinat Titik Kumpul (MongoDB)</h3>
+    <div id="alert-lokasi" class="alert"></div>
+    <div class="form-box">
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:180px;">
+          <label>Latitude</label>
+          <input type="number" step="any" id="lokasi-lat" placeholder="-7.797068" />
+        </div>
+        <div style="flex:1; min-width:180px;">
+          <label>Longitude</label>
+          <input type="number" step="any" id="lokasi-lng" placeholder="110.370529" />
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+        <button type="button" id="btn-lokasi-gps" class="outline">📍 Ambil GPS Saya</button>
+      </div>
+
+      <p style="font-size:12px; color:#666; margin-top:10px;">
+        Klik peta untuk mengisi latitude/longitude.
+      </p>
+
+      <div id="lokasi-map" style="width:100%; height:260px; background:#eee; border-radius:8px; border:1px solid #ccc;"></div>
+    </div>
   </div>
 
   <div data-tabcontent="kendaraan" data-tab="my-kendaraan" style="display:none">
@@ -261,7 +294,7 @@
   <div data-tabcontent="profil" data-tab="simstnk" style="display:none">
   <h2>Upload Dokumen SIM / STNK</h2>
   <p style="font-size:13px; color:#666; margin-bottom:12px;">
-    Masukkan nomor SIM/STNK kamu. Admin akan memverifikasi secara manual.
+    Upload foto SIM/STNK kamu. Admin akan memverifikasi secara manual.
   </p>
   
   <div id="sim-upload-container">
@@ -272,8 +305,13 @@
           <option value="SIM">SIM</option>
           <option value="STNK">STNK</option>
         </select>
-        <label>Nomor Dokumen</label>
-        <input type="text" id="ss-nomor" placeholder="cth: 1234567890" required />
+        <label>Nomor Dokumen (opsional)</label>
+        <input type="text" id="ss-nomor" placeholder="cth: 1234567890" />
+        <label>Foto SIM/STNK</label>
+        <input type="file" id="ss-dokumen" accept="image/*" required />
+        <div style="margin-top:10px;">
+          <img id="ss-preview" style="display:none; width:100%; max-width:320px; border-radius:8px; border:1px solid #ccc;" />
+        </div>
         <button type="submit">Kirim untuk Diverifikasi</button>
       </form>
     </div>
@@ -289,6 +327,7 @@
     <button class="tab-btn active" data-group="admin" data-tab="admin-booking">Kelola Booking</button>
     <button class="tab-btn"        data-group="admin" data-tab="admin-users">Kelola User</button>
     <button class="tab-btn"        data-group="admin" data-tab="admin-verif">Verifikasi SIM/STNK</button>
+    <button class="tab-btn"        data-group="admin" data-tab="admin-mongo">Monitoring MongoDB</button>
   </div>
 
   <div data-tabcontent="admin" data-tab="admin-booking">
@@ -326,13 +365,13 @@
     </p>
     <table style="margin-bottom:16px;">
       <thead>
-        <tr><th>ID</th><th>User ID</th><th>Jenis</th><th>Status</th></tr>
+        <tr><th>ID</th><th>User ID</th><th>Jenis</th><th>Dokumen</th><th>Status</th><th>Aksi</th></tr>
       </thead>
       <tbody id="admin-simstnk-body">
-        <tr><td colspan="4" class="empty-msg">-</td></tr>
+        <tr><td colspan="6" class="empty-msg">Memuat...</td></tr>
       </tbody>
     </table>
-    <div class="form-box">
+    <div class="form-box" style="display:none;">
       <form id="form-verif">
         <label>ID Dokumen</label>
         <input type="number" id="verif-id" placeholder="ID dari tabel" required />
@@ -343,6 +382,58 @@
         </select>
         <button type="submit">Proses Verifikasi</button>
       </form>
+    </div>
+  </div>
+
+  <div data-tabcontent="admin" data-tab="admin-mongo" style="display:none">
+    <h2>Monitoring MongoDB</h2>
+
+    <h3>Lokasi (Titik Kumpul)</h3>
+    <div style="overflow-x:auto; margin-bottom:16px;">
+      <table>
+        <thead>
+          <tr><th>Kendaraan</th><th>Titik</th><th>Latitude</th><th>Longitude</th><th>Updated</th></tr>
+        </thead>
+        <tbody id="admin-lokasi-body">
+          <tr><td colspan="5" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Live Tracking</h3>
+    <div style="overflow-x:auto; margin-bottom:16px;">
+      <table>
+        <thead>
+          <tr><th>Kendaraan</th><th>Status</th><th>Latitude</th><th>Longitude</th><th>Updated</th></tr>
+        </thead>
+        <tbody id="admin-live-tracking-body">
+          <tr><td colspan="5" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Riwayat Lokasi (20 data terbaru)</h3>
+    <div style="overflow-x:auto; margin-bottom:16px;">
+      <table>
+        <thead>
+          <tr><th>Kendaraan</th><th>Latitude</th><th>Longitude</th><th>Created</th></tr>
+        </thead>
+        <tbody id="admin-riwayat-lokasi-body">
+          <tr><td colspan="4" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Tracking Log (20 data terbaru)</h3>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Kendaraan</th><th>Aktivitas</th><th>Created</th></tr>
+        </thead>
+        <tbody id="admin-tracking-log-body">
+          <tr><td colspan="3" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </div>

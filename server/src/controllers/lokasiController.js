@@ -1,5 +1,16 @@
 const { Lokasi, LiveTracking } = require('../services/Lokasi');
 const Kendaraan = require('../services/Kendaraan');
+const RiwayatLokasi = require('../services/RiwayatLokasi');
+const TrackingEvent = require('../services/TrackingEvent');
+
+const getAllLokasi = async (req, res) => {
+  try {
+    const data = await Lokasi.find().sort({ updatedAt: -1 });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
 
 // GET /api/lokasi/:kendaraan_id — lihat titik kumpul kendaraan
 const getLokasi = async (req, res) => {
@@ -16,7 +27,7 @@ const getLokasi = async (req, res) => {
 const setLokasi = async (req, res) => {
   try {
     const { kendaraan_id, nama_titik, latitude, longitude } = req.body;
-    if (!kendaraan_id || !nama_titik || !latitude || !longitude) {
+    if (!kendaraan_id || !nama_titik || latitude == null || longitude == null) {
       return res.status(400).json({ message: 'Semua field wajib' });
     }
     const lokasi = await Lokasi.findOneAndUpdate(
@@ -46,7 +57,7 @@ const deleteLokasi = async (req, res) => {
 const updateLiveTracking = async (req, res) => {
   try {
     const { kendaraan_id, latitude, longitude, status } = req.body;
-    if (!kendaraan_id || !latitude || !longitude) {
+    if (!kendaraan_id || latitude == null || longitude == null) {
       return res.status(400).json({ message: 'kendaraan_id, latitude, longitude wajib' });
     }
     // Pastikan kendaraan milik driver ini
@@ -58,9 +69,33 @@ const updateLiveTracking = async (req, res) => {
 
     const tracking = await LiveTracking.findOneAndUpdate(
       { kendaraan_id },
-      { latitude, longitude, status: status || 'dalam_perjalanan', updatedAt: new Date() },
-      { upsert: true, new: true }
+      {
+        latitude,
+        longitude,
+        status: status || 'dalam_perjalanan',
+        updatedAt: new Date()
+      },
+      {
+        upsert: true,
+        new: true
+      }
     );
+
+    await TrackingEvent.create({
+      kendaraan_id,
+      type: 'gps_update',
+      latitude,
+      longitude,
+      aktivitas: `GPS Update (${latitude}, ${longitude})`
+    });
+
+    await RiwayatLokasi.create({
+      kendaraan_id,
+      latitude,
+      longitude,
+      createdAt: new Date()
+    });
+
     res.json({ message: 'Posisi diupdate', tracking });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -78,14 +113,39 @@ const getLiveTracking = async (req, res) => {
   }
 };
 
-// DELETE /api/lokasi/live/:kendaraan_id — hapus live tracking saat selesai
-const stopLiveTracking = async (req, res) => {
+const getAllLiveTracking = async (req, res) => {
   try {
-    await LiveTracking.deleteOne({ kendaraan_id: parseInt(req.params.kendaraan_id) });
-    res.json({ message: 'Live tracking dihentikan' });
+    const data = await LiveTracking.find().sort({ updatedAt: -1 });
+    res.json(data);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-module.exports = { getLokasi, setLokasi, deleteLokasi, updateLiveTracking, getLiveTracking, stopLiveTracking };
+// DELETE /api/lokasi/live/:kendaraan_id — hapus live tracking saat selesai
+const stopLiveTracking = async (req, res) => {
+  try {
+    const kendaraan_id = parseInt(req.params.kendaraan_id, 10);
+    const tracking = await LiveTracking.findOneAndUpdate(
+      { kendaraan_id },
+      { status: 'selesai', updatedAt: new Date() },
+      { new: true }
+    );
+    if (!tracking) return res.status(404).json({ message: 'Live tracking tidak ditemukan' });
+
+    res.json({ message: 'Live tracking dihentikan', tracking });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = {
+  getAllLokasi,
+  getLokasi,
+  setLokasi,
+  deleteLokasi,
+  updateLiveTracking,
+  getAllLiveTracking,
+  getLiveTracking,
+  stopLiveTracking
+};

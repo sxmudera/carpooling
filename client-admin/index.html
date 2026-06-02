@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Carpooling Mahasiswa</title>
+  <script>
+    // Ganti saat deploy terpisah bila backend beda domain.
+    window.API_BASE_URL = window.API_BASE_URL || '/api';
+    // Ganti ke URL platform user (mis: https://carpooling-user-dot-<project>.appspot.com)
+    window.USER_BASE_URL = window.USER_BASE_URL || '/';
+  </script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<nav class="navbar">
+  <div class="logo">🛡️ Admin CarpoolMHS</div>
+  <div class="nav-links">
+    <a href="#" id="nav-admin" style="display:none">Dashboard</a>
+    <a href="/" id="nav-user-site">Platform User</a>
+    <button id="btn-logout">Logout</button>
+  </div>
+</nav>
+
+<div id="page-login" class="page active">
+  <h2>Login Admin</h2>
+  <div id="alert-login" class="alert"></div>
+  <div class="form-box">
+    <form id="form-login">
+      <label>Email Admin</label>
+      <input type="email" id="login-email" required />
+      <label>Password</label>
+      <input type="password" id="login-pass" required />
+      <button type="submit">Masuk ke Dashboard</button>
+    </form>
+    <p style="margin-top:12px; font-size:13px;">
+      Bukan admin? <a href="/">Masuk ke platform user</a>
+    </p>
+  </div>
+</div>
+
+<div id="page-admin" class="page">
+  <h2>Panel Admin</h2>
+  <div id="alert-admin" class="alert"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-group="admin" data-tab="admin-booking">Kelola Booking</button>
+    <button class="tab-btn" data-group="admin" data-tab="admin-users">Kelola User</button>
+    <button class="tab-btn" data-group="admin" data-tab="admin-verif">Verifikasi SIM/STNK</button>
+    <button class="tab-btn" data-group="admin" data-tab="admin-mongo">Monitoring MongoDB</button>
+  </div>
+
+  <div data-tabcontent="admin" data-tab="admin-booking">
+    <h2>Semua Booking</h2>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>#</th><th>User</th><th>Kendaraan</th><th>Tanggal</th><th>Status</th><th>Aksi</th></tr>
+        </thead>
+        <tbody id="admin-booking-body">
+          <tr><td colspan="6" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div data-tabcontent="admin" data-tab="admin-users" style="display:none">
+    <h2>Semua User</h2>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Nama</th><th>Email</th><th>Role</th><th>Rating</th><th>Aksi</th></tr>
+        </thead>
+        <tbody id="admin-users-body">
+          <tr><td colspan="6" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div data-tabcontent="admin" data-tab="admin-verif" style="display:none">
+    <h2>Verifikasi SIM/STNK</h2>
+    <table style="margin-bottom:16px;">
+      <thead>
+        <tr><th>ID</th><th>User ID</th><th>Jenis</th><th>Dokumen</th><th>Status</th><th>Aksi</th></tr>
+      </thead>
+      <tbody id="admin-simstnk-body">
+        <tr><td colspan="6" class="empty-msg">Memuat...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div data-tabcontent="admin" data-tab="admin-mongo" style="display:none">
+    <h2>Monitoring MongoDB</h2>
+
+    <h3>Lokasi (Titik Kumpul)</h3>
+    <div style="overflow-x:auto; margin-bottom:16px;">
+      <table>
+        <thead>
+          <tr><th>Kendaraan</th><th>Titik</th><th>Latitude</th><th>Longitude</th><th>Updated</th></tr>
+        </thead>
+        <tbody id="admin-lokasi-body">
+          <tr><td colspan="5" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Live Tracking</h3>
+    <div style="overflow-x:auto; margin-bottom:16px;">
+      <table>
+        <thead>
+          <tr><th>Kendaraan</th><th>Status</th><th>Latitude</th><th>Longitude</th><th>Updated</th></tr>
+        </thead>
+        <tbody id="admin-live-tracking-body">
+          <tr><td colspan="5" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Riwayat Lokasi (20 data terbaru)</h3>
+    <div style="overflow-x:auto; margin-bottom:16px;">
+      <table>
+        <thead>
+          <tr><th>Kendaraan</th><th>Latitude</th><th>Longitude</th><th>Created</th></tr>
+        </thead>
+        <tbody id="admin-riwayat-lokasi-body">
+          <tr><td colspan="4" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Tracking Log (20 data terbaru)</h3>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Kendaraan</th><th>Aktivitas</th><th>Created</th></tr>
+        </thead>
+        <tbody id="admin-tracking-log-body">
+          <tr><td colspan="3" class="empty-msg">Memuat...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>

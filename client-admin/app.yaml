@@ -1,0 +1,13 @@
+runtime: python39
+service: carpooling-admin
+
+handlers:
+  - url: /(.*\.(css|js|png|jpg|jpeg|gif|svg|ico|webp))
+    static_files: \1
+    upload: .*\.(css|js|png|jpg|jpeg|gif|svg|ico|webp)$
+    secure: always
+
+  - url: /.*
+    static_files: index.html
+    upload: index.html
+    secure: always

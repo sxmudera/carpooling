@@ -1,4 +1,5 @@
-const API = '/api';
+const API = window.API_BASE_URL || '/api';
+const ADMIN_BASE_URL = window.ADMIN_BASE_URL || '/admin';
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -22,7 +23,17 @@ async function apiFetch(path, method = 'GET', body = null) {
   if (token) opts.headers['Authorization'] = `Bearer ${token}`;
   if (body)  opts.body = JSON.stringify(body);
   const res = await fetch(API + path, opts);
-  return res.json();
+  const raw = await res.text();
+  let data;
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    data = { message: raw || 'Respons server tidak valid' };
+  }
+  if (!res.ok) {
+    return { ...data, ok: false, status: res.status };
+  }
+  return data;
 }
 
 function badgeHtml(status) {
@@ -49,17 +60,10 @@ function updateNav() {
 
   if (loggedIn) {
     document.getElementById('nav-kendaraan').style.display = 'inline';
-    if (getRole() === 'admin') {
-      document.getElementById('nav-booking').style.display   = 'none';
-      document.getElementById('nav-host').style.display      = 'none';
-      document.getElementById('nav-profil').style.display    = 'none';
-      document.getElementById('nav-admin').style.display     = 'inline';
-    } else {
-      document.getElementById('nav-booking').style.display   = 'inline';
-      document.getElementById('nav-host').style.display      = 'inline';
-      document.getElementById('nav-profil').style.display    = 'inline';
-      document.getElementById('nav-admin').style.display     = 'none';
-    }
+    document.getElementById('nav-booking').style.display   = 'inline';
+    document.getElementById('nav-host').style.display      = 'inline';
+    document.getElementById('nav-profil').style.display    = 'inline';
+    document.getElementById('nav-admin').style.display     = 'none';
   } else {
     ['nav-kendaraan','nav-booking','nav-host','nav-profil','nav-admin'].forEach(id => {
       const el = document.getElementById(id);
@@ -79,13 +83,13 @@ document.getElementById('form-login').addEventListener('submit', async (e) => {
     localStorage.setItem('token', data.token);
     localStorage.setItem('role',  data.role);
     localStorage.setItem('nama',  data.nama);
-    localStorage.setItem('user_id', data.id || '');
-    updateNav();
+    localStorage.setItem('user_id', data.id ? String(data.id) : '');
     if (data.role === 'admin') {
-      showPage('page-admin'); loadAdminData();
-    } else {
-      showPage('page-kendaraan'); loadKendaraan();
+      window.location.href = ADMIN_BASE_URL;
+      return;
     }
+    updateNav();
+    showPage('page-kendaraan'); loadKendaraan();
   } else {
     showAlert('alert-login', data.message || 'Login gagal', 'error');
   }
@@ -163,8 +167,21 @@ document.getElementById('form-kendaraan').addEventListener('submit', async (e) =
   };
   const data = await apiFetch('/kendaraan', 'POST', body);
   if (data.kendaraan) {
+    const latVal = parseFloat(document.getElementById('lokasi-lat')?.value || '');
+    const lngVal = parseFloat(document.getElementById('lokasi-lng')?.value || '');
+    const namaTitik = document.getElementById('k-titik')?.value;
+    if (Number.isFinite(latVal) && Number.isFinite(lngVal) && namaTitik) {
+      await apiFetch('/lokasi', 'POST', {
+        kendaraan_id: data.kendaraan.id,
+        nama_titik: namaTitik,
+        latitude: latVal,
+        longitude: lngVal
+      });
+    }
     showAlert('alert-kendaraan', 'Kendaraan berhasil ditambahkan!', 'success');
     document.getElementById('form-kendaraan').reset();
+    document.getElementById('lokasi-lat') && (document.getElementById('lokasi-lat').value = '');
+    document.getElementById('lokasi-lng') && (document.getElementById('lokasi-lng').value = '');
     loadKendaraan();
     loadMyKendaraan();
   } else {
@@ -173,10 +190,14 @@ document.getElementById('form-kendaraan').addEventListener('submit', async (e) =
 });
 
 async function loadMyKendaraan() {
-  const users = await apiFetch('/users');
   const allK  = await apiFetch('/kendaraan');
   if (!Array.isArray(allK)) return;
-  const myId = users.id;
+  let myId = getUserId();
+  if (!myId) {
+    const me = await apiFetch('/users');
+    myId = me && me.id ? parseInt(me.id) : 0;
+    if (myId) localStorage.setItem('user_id', String(myId));
+  }
   const myK  = allK.filter(k => k.user_id === myId);
   const tb   = document.getElementById('my-kendaraan-body');
   if (!tb) return;
@@ -382,6 +403,45 @@ let _trackMarker = null;
 let _shareMap    = null;
 let _shareMarker = null;
 
+const _DESTINATION = {
+  lat: -7.782079970018859,
+  lng: 110.41523684571618,
+  nama: 'UPN Kampus 2 Yogyakarta - Babarsari'
+};
+let _pickupCoords = null;
+let _routePolyline = null;
+let _routeProgressPolyline = null;
+let _destinationMarker = null;
+let _lastProgressOrigin = null;
+
+function _distMeters(a, b) {
+  const R = 6371000;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const lat1 = a.lat * Math.PI / 180;
+  const lat2 = b.lat * Math.PI / 180;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * (Math.sin(dLng / 2) ** 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+async function fetchRoadRouteLatLngs(from, to) {
+  try {
+    // OSRM public server (tanpa API key). Koordinat OSRM: lon,lat
+    const url =
+      `https://router.project-osrm.org/route/v1/driving/` +
+      `${from.lng},${from.lat};${to.lng},${to.lat}` +
+      `?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const coords = data?.routes?.[0]?.geometry?.coordinates;
+    if (!Array.isArray(coords) || coords.length < 2) return null;
+    return coords.map(([lng, lat]) => [lat, lng]);
+  } catch (e) {
+    return null;
+  }
+}
+
 // DRIVER: mulai share lokasi
 async function mulaiShareLokasi(kendaraanId) {
   if (!navigator.geolocation) {
@@ -421,10 +481,15 @@ async function mulaiShareLokasi(kendaraanId) {
 }
 window.mulaiShareLokasi = mulaiShareLokasi;
 
-function stopShareLocation() {
+async function stopShareLocation() {
+  const kendaraanId = _trackingKId;
   if (_watchId !== null) {
     navigator.geolocation.clearWatch(_watchId);
     _watchId = null;
+  }
+  _trackingKId = null;
+  if (kendaraanId && getToken()) {
+    await apiFetch(`/lokasi/live/${kendaraanId}`, 'DELETE');
   }
   const el = document.getElementById('tracking-status');
   if (el) el.textContent = '🔴 Tracking dihentikan';
@@ -449,6 +514,27 @@ async function pantauRute(kendaraanId, nama) {
     }).addTo(_trackMap);
   }
 
+  _pickupCoords = null;
+  if (_routePolyline) { _trackMap.removeLayer(_routePolyline); _routePolyline = null; }
+  if (_routeProgressPolyline) { _trackMap.removeLayer(_routeProgressPolyline); _routeProgressPolyline = null; }
+  if (_destinationMarker) { _trackMap.removeLayer(_destinationMarker); _destinationMarker = null; }
+  _lastProgressOrigin = null;
+
+  try {
+    const pickup = await apiFetch(`/lokasi/${kendaraanId}`);
+    if (pickup && typeof pickup.latitude === 'number' && typeof pickup.longitude === 'number') {
+      _pickupCoords = { lat: pickup.latitude, lng: pickup.longitude };
+      _destinationMarker = L.marker([_DESTINATION.lat, _DESTINATION.lng]).addTo(_trackMap)
+        .bindPopup(`🎯 ${_DESTINATION.nama}`);
+
+      // Garis rute mengikuti jalan; kalau gagal, fallback garis lurus tetap ditampilkan.
+      const roadLatLngs = await fetchRoadRouteLatLngs(_pickupCoords, _DESTINATION);
+      const latlngs = roadLatLngs || [[_pickupCoords.lat, _pickupCoords.lng], [_DESTINATION.lat, _DESTINATION.lng]];
+      _routePolyline = L.polyline(latlngs, { color: '#3b82f6', weight: 4 }).addTo(_trackMap);
+      _trackMap.fitBounds(_routePolyline.getBounds(), { padding: [20, 20] });
+    }
+  } catch (e) {}
+
   await refreshPantauRute(kendaraanId);
 }
 window.pantauRute = pantauRute;
@@ -459,7 +545,7 @@ async function refreshPantauRute(kendaraanId) {
   const el = document.getElementById('pantau-status');
   try {
     const data = await apiFetch(`/lokasi/live/${kendaraanId}`);
-    if (data.latitude) {
+    if (typeof data.latitude === 'number' && typeof data.longitude === 'number') {
       const { latitude, longitude, status, updatedAt } = data;
       const waktu = new Date(updatedAt).toLocaleTimeString('id-ID');
       el.textContent = `📍 Posisi driver: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} — Status: ${status} — Update: ${waktu}`;
@@ -471,6 +557,35 @@ async function refreshPantauRute(kendaraanId) {
         _trackMarker.setLatLng([latitude, longitude]);
       }
       _trackMap.setView([latitude, longitude], 15);
+
+      if (_pickupCoords) {
+        const origin = { lat: latitude, lng: longitude };
+        const shouldRefetch =
+          !_lastProgressOrigin || _distMeters(_lastProgressOrigin, origin) > 20; // refetch kalau pindah >20m
+
+        if (shouldRefetch) {
+          _lastProgressOrigin = origin;
+          let roadLatLngs = null;
+          try {
+            roadLatLngs = await fetchRoadRouteLatLngs(origin, _DESTINATION);
+          } catch (e) {}
+
+          const latlngs = roadLatLngs || [
+            [origin.lat, origin.lng],
+            [_DESTINATION.lat, _DESTINATION.lng]
+          ];
+
+          if (!_routeProgressPolyline) {
+            _routeProgressPolyline = L.polyline(latlngs, {
+              color: '#22c55e',
+              weight: 4,
+              dashArray: '6, 6'
+            }).addTo(_trackMap);
+          } else {
+            _routeProgressPolyline.setLatLngs(latlngs);
+          }
+        }
+      }
     } else {
       el.textContent = data.message || 'Driver belum mulai tracking.';
     }
@@ -566,13 +681,39 @@ document.getElementById('form-edit-profil').addEventListener('submit', async (e)
 
 document.getElementById('form-simstnk').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const body = {
-    jenis: document.getElementById('ss-jenis').value,
-    nomor: document.getElementById('ss-nomor').value,
-  };
-  const data = await apiFetch('/users/sim-stnk', 'POST', body);
+  const fileInput = document.getElementById('ss-dokumen');
+  const file = fileInput?.files?.[0];
+  if (!file) {
+    showAlert('alert-profil', 'Pilih foto SIM/STNK dulu', 'error');
+    return;
+  }
+
+  const jenis = document.getElementById('ss-jenis').value;
+  const nomor = document.getElementById('ss-nomor').value;
+
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result || '';
+      const parts = String(result).split(',');
+      resolve(parts.length > 1 ? parts[1] : parts[0]);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const data = await apiFetch('/sim-verifications', 'POST', {
+    jenis,
+    nomor: nomor || null,
+    mimeType: file.type || null,
+    filename: file.name || null,
+    documentBase64: base64
+  });
+
   showAlert('alert-profil', data.message || 'Dikirim', data.message ? 'success' : 'error');
   document.getElementById('form-simstnk').reset();
+  const preview = document.getElementById('ss-preview');
+  if (preview) preview.style.display = 'none';
 });
 
 document.getElementById('btn-mulai-tracking')?.addEventListener('click', () => {
@@ -588,6 +729,7 @@ async function loadAdminData() {
   loadAdminUsers();
   loadAdminBooking();
   loadAdminSimStnk();
+  loadAdminMongoData();
 }
 
 async function loadAdminUsers() {
@@ -657,14 +799,162 @@ window.adminBatal = adminBatal;
 async function loadAdminSimStnk() {
   const tb = document.getElementById('admin-simstnk-body');
   if (!tb) return;
-  tb.innerHTML = '<tr><td colspan="4" class="empty-msg">Masukkan ID dokumen untuk verifikasi di bawah.</td></tr>';
+
+  const docs = await apiFetch('/sim-verifications');
+  if (!Array.isArray(docs) || docs.length === 0) {
+    tb.innerHTML = '<tr><td colspan="6" class="empty-msg">Belum ada dokumen SIM/STNK.</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = docs.slice(0, 20).map(d => {
+    const mime = d.mimeType || 'image/jpeg';
+    const img = d.documentBase64
+      ? `<img src="data:${mime};base64,${d.documentBase64}" style="max-width:90px; max-height:60px; object-fit:cover; border-radius:6px; border:1px solid #ddd;" />`
+      : '-';
+
+    const status = d.status || '-';
+    const actions = status === 'pending'
+      ? `
+        <button class="action-btn success" onclick="adminVerifikasiSim('${d._id}', 'terverifikasi')">✅ Terima</button>
+        <button class="action-btn danger" onclick="adminVerifikasiSim('${d._id}', 'ditolak')">❌ Tolak</button>
+      `
+      : `<span style="font-weight:600;">${status}</span>`;
+
+    return `
+      <tr>
+        <td>${d._id}</td>
+        <td>${d.user_id}</td>
+        <td>${d.jenis}</td>
+        <td>${img}</td>
+        <td>${badgeHtml(status)}</td>
+        <td style="white-space:nowrap;">${actions}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function adminVerifikasiSim(docId, status_verifikasi) {
+  const data = await apiFetch(`/sim-verifications/${docId}/verifikasi`, 'PUT', { status_verifikasi });
+  alert(data.message || 'Berhasil');
+  loadAdminSimStnk();
+}
+window.adminVerifikasiSim = adminVerifikasiSim;
+
+async function loadRiwayatLokasi(
+    kendaraanId
+){
+    return await apiFetch(
+        `/riwayat/${kendaraanId}`
+    );
+}
+
+async function loadTrackingLog(){
+    return await apiFetch(
+        '/tracking-log'
+    );
+}
+
+async function loadAllLokasi() {
+  return await apiFetch('/lokasi');
+}
+
+async function loadAllLiveTracking() {
+  return await apiFetch('/lokasi/live');
+}
+
+function fmtDateTime(value) {
+  if (!value) return '-';
+  try {
+    return new Date(value).toLocaleString('id-ID');
+  } catch (e) {
+    return '-';
+  }
+}
+
+async function loadAdminMongoData() {
+  const [
+    lokasis,
+    liveTrackings,
+    riwayatLokasis,
+    trackingLogs
+  ] = await Promise.all([
+    loadAllLokasi(),
+    loadAllLiveTracking(),
+    apiFetch('/riwayat-lokasi'),
+    loadTrackingLog(),
+  ]);
+
+  const tbLokasi = document.getElementById('admin-lokasi-body');
+  if (tbLokasi) {
+    if (!Array.isArray(lokasis) || lokasis.length === 0) {
+      tbLokasi.innerHTML = '<tr><td colspan="5" class="empty-msg">Belum ada data lokasi.</td></tr>';
+    } else {
+      tbLokasi.innerHTML = lokasis.map(l => `
+        <tr>
+          <td>${l.kendaraan_id}</td>
+          <td>${l.nama_titik || '-'}</td>
+          <td>${typeof l.latitude === 'number' ? l.latitude.toFixed(6) : '-'}</td>
+          <td>${typeof l.longitude === 'number' ? l.longitude.toFixed(6) : '-'}</td>
+          <td>${fmtDateTime(l.updatedAt)}</td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  const tbLive = document.getElementById('admin-live-tracking-body');
+  if (tbLive) {
+    if (!Array.isArray(liveTrackings) || liveTrackings.length === 0) {
+      tbLive.innerHTML = '<tr><td colspan="5" class="empty-msg">Belum ada data live tracking.</td></tr>';
+    } else {
+      tbLive.innerHTML = liveTrackings.map(t => `
+        <tr>
+          <td>${t.kendaraan_id}</td>
+          <td>${t.status || '-'}</td>
+          <td>${typeof t.latitude === 'number' ? t.latitude.toFixed(6) : '-'}</td>
+          <td>${typeof t.longitude === 'number' ? t.longitude.toFixed(6) : '-'}</td>
+          <td>${fmtDateTime(t.updatedAt)}</td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  const tbRiwayat = document.getElementById('admin-riwayat-lokasi-body');
+  if (tbRiwayat) {
+    if (!Array.isArray(riwayatLokasis) || riwayatLokasis.length === 0) {
+      tbRiwayat.innerHTML = '<tr><td colspan="4" class="empty-msg">Belum ada data riwayat lokasi.</td></tr>';
+    } else {
+      tbRiwayat.innerHTML = riwayatLokasis.slice(0, 20).map(r => `
+        <tr>
+          <td>${r.kendaraan_id}</td>
+          <td>${typeof r.latitude === 'number' ? r.latitude.toFixed(6) : '-'}</td>
+          <td>${typeof r.longitude === 'number' ? r.longitude.toFixed(6) : '-'}</td>
+          <td>${fmtDateTime(r.createdAt)}</td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  const tbLog = document.getElementById('admin-tracking-log-body');
+  if (tbLog) {
+    if (!Array.isArray(trackingLogs) || trackingLogs.length === 0) {
+      tbLog.innerHTML = '<tr><td colspan="3" class="empty-msg">Belum ada data tracking log.</td></tr>';
+    } else {
+      tbLog.innerHTML = trackingLogs.slice(0, 20).map(log => `
+        <tr>
+          <td>${log.kendaraan_id}</td>
+          <td>${log.aktivitas || '-'}</td>
+          <td>${fmtDateTime(log.createdAt)}</td>
+        </tr>
+      `).join('');
+    }
+  }
 }
 
 document.getElementById('form-verif').addEventListener('submit', async (e) => {
   e.preventDefault();
   const id     = document.getElementById('verif-id').value;
   const status = document.getElementById('verif-status').value;
-  const data   = await apiFetch(`/users/sim-stnk/${id}/verifikasi`, 'PUT', { status_verifikasi: status });
+  const data   = await apiFetch(`/sim-verifications/${id}/verifikasi`, 'PUT', { status_verifikasi: status });
   showAlert('alert-admin', data.message || 'Selesai', 'success');
   document.getElementById('form-verif').reset();
 });
@@ -680,11 +970,72 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll(`[data-tabcontent="${group}"]`).forEach(tc => {
       tc.style.display = tc.dataset.tab === target ? 'block' : 'none';
     });
+    if (group === 'kendaraan' && target === 'tambah') initLokasiForm();
     if (target === 'my-kendaraan') loadMyKendaraan();
     if (target === 'my-booking')   loadMyBooking();
     if (target === 'profil-info')  loadProfil();
     if (target === 'host-booking') loadHostBooking();
+    if (target === 'admin-mongo')  loadAdminMongoData();
   });
+});
+
+let _lokasiMap = null;
+let _lokasiMarker = null;
+
+async function initLokasiForm() {
+  if (!_lokasiMap) {
+    const latEl = document.getElementById('lokasi-lat');
+    const lngEl = document.getElementById('lokasi-lng');
+    const latVal = parseFloat(latEl?.value || '');
+    const lngVal = parseFloat(lngEl?.value || '');
+    const hasCoord = Number.isFinite(latVal) && Number.isFinite(lngVal);
+
+    _lokasiMap = L.map('lokasi-map').setView(
+      hasCoord ? [latVal, lngVal] : [-7.797, 110.370],
+      hasCoord ? 16 : 13
+    );
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(_lokasiMap);
+    _lokasiMap.on('click', (e) => {
+      const { lat, lng } = e.latlng;
+      if (latEl) latEl.value = String(lat);
+      if (lngEl) lngEl.value = String(lng);
+      if (!_lokasiMarker) {
+        _lokasiMarker = L.marker([lat, lng]).addTo(_lokasiMap);
+      } else {
+        _lokasiMarker.setLatLng([lat, lng]);
+      }
+    });
+    if (hasCoord) {
+      _lokasiMarker = L.marker([latVal, lngVal]).addTo(_lokasiMap);
+    }
+  }
+}
+
+document.getElementById('btn-lokasi-gps')?.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    showAlert('alert-lokasi', 'Browser tidak mendukung GPS', 'error');
+    return;
+  }
+  if (!_lokasiMap) initLokasiForm();
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const { latitude, longitude } = pos.coords;
+    const latEl = document.getElementById('lokasi-lat');
+    const lngEl = document.getElementById('lokasi-lng');
+    if (latEl) latEl.value = String(latitude);
+    if (lngEl) lngEl.value = String(longitude);
+    if (_lokasiMap) {
+      _lokasiMap.setView([latitude, longitude], 16);
+      if (!_lokasiMarker) {
+        _lokasiMarker = L.marker([latitude, longitude]).addTo(_lokasiMap);
+      } else {
+        _lokasiMarker.setLatLng([latitude, longitude]);
+      }
+    }
+  }, (err) => {
+    showAlert('alert-lokasi', err.message || 'Gagal ambil GPS', 'error');
+  }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 });
 });
 
 // ─── NAVBAR LINKS ─────────────────────────────────────────────────────────────
@@ -710,7 +1061,7 @@ document.getElementById('btn-kembali-pantau').addEventListener('click', () => {
 updateNav();
 if (getToken()) {
   if (getRole() === 'admin') {
-    showPage('page-admin'); loadAdminData();
+    window.location.href = ADMIN_BASE_URL;
   } else {
     showPage('page-kendaraan'); loadKendaraan();
   }
