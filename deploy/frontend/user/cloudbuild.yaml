@@ -6,3 +6,5 @@ steps:
       - deploy
       - client-user/app.yaml
       - '--quiet'
+options:
+  logging: CLOUD_LOGGING_ONLY
