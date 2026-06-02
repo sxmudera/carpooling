@@ -4,7 +4,7 @@ steps:
     args:
       - app
       - deploy
-      - client-admin/app.yaml
+      - deploy/frontend/admin/app.yaml
       - '--quiet'
 options:
   logging: CLOUD_LOGGING_ONLY
