@@ -1,3 +1,6 @@
+substitutions:
+  _CLOUD_SQL_INSTANCE: 'PROJECT_ID:asia-southeast2:NAMA_INSTANCE_SQL'
+
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-f', 'deploy/backend/Dockerfile', '-t', 'gcr.io/$PROJECT_ID/carpooling-backend', '.']
@@ -13,7 +16,8 @@ steps:
       - '--region=asia-southeast2'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--set-env-vars=NODE_ENV=production'
+      - '--add-cloudsql-instances=${_CLOUD_SQL_INSTANCE}'
+      - '--set-env-vars=NODE_ENV=production,CLOUD_SQL_CONNECTION_NAME=${_CLOUD_SQL_INSTANCE}'
 images:
   - 'gcr.io/$PROJECT_ID/carpooling-backend'
 options:
