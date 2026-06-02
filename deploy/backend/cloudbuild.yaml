@@ -1,3 +1,7 @@
+# Ganti _CLOUD_SQL_INSTANCE di Trigger → Substitution variables
+# Format: project-id:region:nama-instance
+# Contoh: d-34-489016:asia-southeast2:carpooling-mysql
+
 substitutions:
   _CLOUD_SQL_INSTANCE: 'PROJECT_ID:asia-southeast2:NAMA_INSTANCE_SQL'
 
