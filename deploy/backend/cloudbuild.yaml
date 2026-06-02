@@ -15,3 +15,5 @@ steps:
       - '--allow-unauthenticated'
 images:
   - 'gcr.io/$PROJECT_ID/carpooling-backend'
+options:
+  logging: CLOUD_LOGGING_ONLY
