@@ -143,7 +143,6 @@ async function loadAdminSimStnk() {
       : `<span style="font-weight:600;">${d.status || '-'}</span>`;
     return `
       <tr>
-        <td>${d._id}</td>
         <td>${d.user_id}</td>
         <td>${d.jenis}</td>
         <td>${img}</td>

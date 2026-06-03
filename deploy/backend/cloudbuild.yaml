@@ -1,15 +1,14 @@
-# Ganti _CLOUD_SQL_INSTANCE di Trigger → Substitution variables
-# Format: project-id:region:nama-instance
-# Contoh: d-34-489016:asia-southeast2:carpooling-mysql
-
 substitutions:
   _CLOUD_SQL_INSTANCE: 'd-34-489016:us-central1:carpooling'
 
+#build docker image
 steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-f', 'deploy/backend/Dockerfile', '-t', 'gcr.io/$PROJECT_ID/carpooling-backend', '.']
+    #push image ke container
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', 'gcr.io/$PROJECT_ID/carpooling-backend']
+    #deploy ke cloud run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -21,7 +20,6 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--add-cloudsql-instances=${_CLOUD_SQL_INSTANCE}'
-      # update-env-vars: jangan hapus DB_USER/DB_PASS/MONGO_URI/JWT yang sudah diset di Cloud Run
       - '--update-env-vars=NODE_ENV=production,CLOUD_SQL_CONNECTION_NAME=${_CLOUD_SQL_INSTANCE}'
 images:
   - 'gcr.io/$PROJECT_ID/carpooling-backend'

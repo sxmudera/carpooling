@@ -1,6 +1,8 @@
+#build
 steps:
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
+    #deploy
     args:
       - app
       - deploy
